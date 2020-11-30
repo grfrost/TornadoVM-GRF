@@ -32,11 +32,13 @@ static void exitAgentMonitor(jvmtiEnv *jvmti) {
 
 static void JNICALL callbackExceptionEvent(jvmtiEnv *jvmti, JNIEnv *env, jthread thread, jmethodID method, jlocation location,
       jobject exception, jmethodID catchMethod, jlocation catchLocation) {
-   fprintf(stderr,"throw!\n");
+   //fprintf(stderr,"throw!\n");
 
 }
+static jlong count = 0;
 static jint JNICALL callbackHeapIteration (jlong class_tag, jlong size, jlong* tag_ptr, jint length, void* user_data){
-   fprintf(stderr,"heap CB!\n");
+   count++;
+   //fprintf(stderr,"heap CB!\n");
    return 0; // JVMTI_VISIT_OBJECTS || JVMTI_VISIT_ABORT
 }
 
@@ -44,38 +46,38 @@ static void JNICALL garbageCollectionStart (jvmtiEnv *jvmti){
    fprintf(stderr,"gc START -------------------------------------------------\n");
 }
 
-
+volatile static jboolean collectionFinished = JNI_FALSE;
+volatile static jboolean agentThreadShouldDie = JNI_FALSE;
+volatile static jboolean agentThreadShouldRun = JNI_FALSE;
 
 static void JNICALL garbageCollectionFinish (jvmtiEnv *jvmti){
    fprintf(stderr,"gc END -------------------------------------------------\n");
-
-   // cant do this like this.  need to create an agent thread and signal using monitors, 
-   // see +http://hg.openjdk.java.net/jdk8u/jdk8u-dev/jdk/file/tip/src/share/demo/jvmti/heapViewer/heapViewer.c
-   if (0){
-      jvmtiHeapCallbacks heapCallbacks;
-      (void) memset(&heapCallbacks, 0, sizeof(heapCallbacks));
-      heapCallbacks.heap_iteration_callback = &callbackHeapIteration;
-      jvmtiError error =  (*jvmti)->IterateThroughHeap(jvmti, /*(jint) heap_filter */0, /*(jclass) klass */ NULL, &heapCallbacks, /*(void*) user_data*/ NULL);
-      checkJVMTIError(jvmti, error, "Cannot iterate heap ");
-   }
+   agentThreadShouldRun = JNI_TRUE;
 }
 
-volatile static jboolean collectionFinished = JNI_FALSE;
-volatile static jboolean agentThreadShouldDie = JNI_FALSE;
-
 /* Callback for JVMTI_EVENT_VM_INIT */
-static void JNICALL *agentThread (jvmtiEnv* jvmti, JNIEnv* env, void* arg){
+static void JNICALL agentThread (jvmtiEnv* jvmti, JNIEnv* env, void* arg){
    fprintf(stderr,"agent thread started\n");
    while (agentThreadShouldDie == JNI_FALSE){
-      sleep(1);
-      fprintf(stderr,"in agent\n");
+      while ((agentThreadShouldDie == JNI_FALSE) && (agentThreadShouldRun == JNI_FALSE)){
+         usleep(10);
+      }
+      if (agentThreadShouldRun == JNI_TRUE){
+         agentThreadShouldRun = JNI_FALSE; 
+         jclass klass = (*env)->FindClass(env, "uk/ac/manchester/tornado/drivers/opencl/OCLEvent");
+         jvmtiHeapCallbacks heapCallbacks;
+         (void) memset(&heapCallbacks, 0, sizeof(heapCallbacks));
+         heapCallbacks.heap_iteration_callback = &callbackHeapIteration;
+         count = 0;
+         jvmtiError error =  (*jvmti)->IterateThroughHeap(jvmti, /*(jint) heap_filter */0, /*(jclass) klass */ klass, &heapCallbacks, /*(void*) user_data*/ NULL);
+         checkJVMTIError(jvmti, error, "Cannot iterate heap ");
+         fprintf(stderr, "OCLEvent count = %ld\n", count);
+      }
    }
    fprintf(stderr,"agent thread stopped\n");
 }
 
 static void JNICALL vmInit(jvmtiEnv *jvmti, JNIEnv *env, jthread thread) {
-   //https://download-imagej.mpi-cbg.de/~curtis/src/apache-harmony-6.0-src-r991881/drlvm/vm/tests/jvmti/PopFrame1/popframe.cpp
-
    jclass klass = (*env)->FindClass(env, "java/lang/Thread");
    if(klass) {
       jmethodID method = (*env)->GetMethodID(env, klass, "<init>", "(Ljava/lang/String;)V");
