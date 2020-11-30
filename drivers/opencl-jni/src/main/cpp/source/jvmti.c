@@ -30,9 +30,10 @@ static void exitAgentMonitor(jvmtiEnv *jvmti) {
 }
 
 
+jlong live = 0l;
 static void JNICALL callbackExceptionEvent(jvmtiEnv *jvmti, JNIEnv *env, jthread thread, jmethodID method, jlocation location,
       jobject exception, jmethodID catchMethod, jlocation catchLocation) {
-   //fprintf(stderr,"throw!\n");
+   fprintf(stderr,"throw! %ld\n", live);
 
 }
 static jlong count = 0;
@@ -43,7 +44,7 @@ static jint JNICALL callbackHeapIteration (jlong class_tag, jlong size, jlong* t
 }
 
 static void JNICALL garbageCollectionStart (jvmtiEnv *jvmti){
-   fprintf(stderr,"gc START -------------------------------------------------\n");
+   fprintf(stderr,"gc START -------------------------------------------------%ld \n", live);
 }
 
 volatile static jboolean collectionFinished = JNI_FALSE;
@@ -51,7 +52,7 @@ volatile static jboolean agentThreadShouldDie = JNI_FALSE;
 volatile static jboolean agentThreadShouldRun = JNI_FALSE;
 
 static void JNICALL garbageCollectionFinish (jvmtiEnv *jvmti){
-   fprintf(stderr,"gc END -------------------------------------------------\n");
+   fprintf(stderr,"gc END ------------------------------------------------- %ld\n", live);
    agentThreadShouldRun = JNI_TRUE;
 }
 
@@ -188,18 +189,18 @@ unsigned int : 16;
 } jvmtiCapabilities;
 
 typedef enum {
-JVMTI_MIN_EVENT_TYPE_VAL = 50,
-JVMTI_EVENT_VM_INIT = 50,
-JVMTI_EVENT_VM_DEATH = 51,
-JVMTI_EVENT_THREAD_START = 52,
-JVMTI_EVENT_THREAD_END = 53,
-JVMTI_EVENT_CLASS_FILE_LOAD_HOOK = 54,
-JVMTI_EVENT_CLASS_LOAD = 55,
-JVMTI_EVENT_CLASS_PREPARE = 56,
-JVMTI_EVENT_VM_START = 57,
-JVMTI_EVENT_EXCEPTION = 58,
-JVMTI_EVENT_EXCEPTION_CATCH = 59,
-JVMTI_EVENT_SINGLE_STEP = 60,
+                        JVMTI_MIN_EVENT_TYPE_VAL = 50,
+                        JVMTI_EVENT_VM_INIT = 50,
+                        JVMTI_EVENT_VM_DEATH = 51,
+                        JVMTI_EVENT_THREAD_START = 52,
+                        JVMTI_EVENT_THREAD_END = 53,
+                        JVMTI_EVENT_CLASS_FILE_LOAD_HOOK = 54,
+                        JVMTI_EVENT_CLASS_LOAD = 55,
+                        JVMTI_EVENT_CLASS_PREPARE = 56,
+                        JVMTI_EVENT_VM_START = 57,
+                        JVMTI_EVENT_EXCEPTION = 58,
+                        JVMTI_EVENT_EXCEPTION_CATCH = 59,
+                        JVMTI_EVENT_SINGLE_STEP = 60,
                         JVMTI_EVENT_FRAME_POP = 61,
                         JVMTI_EVENT_BREAKPOINT = 62,
                         JVMTI_EVENT_FIELD_ACCESS = 63,
@@ -223,8 +224,53 @@ JVMTI_EVENT_SINGLE_STEP = 60,
                         JVMTI_MAX_EVENT_TYPE_VAL = 84
                         } jvmtiEvent;
 
+       typedef struct {
+           jvmtiEventVMInit VMInit;                                      //   50 : VM Initialization Event
+           jvmtiEventVMDeath VMDeath;                                    //   51 : VM Death Event
+           jvmtiEventThreadStart ThreadStart;                            //   52 : Thread Start
+           jvmtiEventThreadEnd ThreadEnd;                                //   53 : Thread End
+           jvmtiEventClassFileLoadHook ClassFileLoadHook;                //   54 : Class File Load Hook
+           jvmtiEventClassLoad ClassLoad;                                //   55 : Class Load
+           jvmtiEventClassPrepare ClassPrepare;                          //   56 : Class Prepare
+           jvmtiEventVMStart VMStart;                                    //   57 : VM Start Event
+           jvmtiEventException Exception;                                //   58 : Exception
+           jvmtiEventExceptionCatch ExceptionCatch;                      //   59 : Exception Catch
+           jvmtiEventSingleStep SingleStep;                              //   60 : Single Step
+           jvmtiEventFramePop FramePop;                                  //   61 : Frame Pop
+           jvmtiEventBreakpoint Breakpoint;                              //   62 : Breakpoint
+           jvmtiEventFieldAccess FieldAccess;                            //   63 : Field Access
+           jvmtiEventFieldModification FieldModification;                //   64 : Field Modification
+           jvmtiEventMethodEntry MethodEntry;                            //   65 : Method Entry
+           jvmtiEventMethodExit MethodExit;                              //   66 : Method Exit
+           jvmtiEventNativeMethodBind NativeMethodBind;                  //   67 : Native Method Bind
+           jvmtiEventCompiledMethodLoad CompiledMethodLoad;              //   68 : Compiled Method Load
+           jvmtiEventCompiledMethodUnload CompiledMethodUnload;          //   69 : Compiled Method Unload
+           jvmtiEventDynamicCodeGenerated DynamicCodeGenerated;          //   70 : Dynamic Code Generated
+           jvmtiEventDataDumpRequest DataDumpRequest;                    //   71 : Data Dump Request
+           jvmtiEventReserved reserved72;                                //   72
+           jvmtiEventMonitorWait MonitorWait;                            //   73 : Monitor Wait
+           jvmtiEventMonitorWaited MonitorWaited;                        //   74 : Monitor Waited
+           jvmtiEventMonitorContendedEnter MonitorContendedEnter;        //   75 : Monitor Contended Enter
+           jvmtiEventMonitorContendedEntered MonitorContendedEntered;    //   76 : Monitor Contended Entered
+           jvmtiEventReserved reserved77;                                //   77
+           jvmtiEventReserved reserved78;                                //   78
+           jvmtiEventReserved reserved79;                                //   79
+           jvmtiEventResourceExhausted ResourceExhausted;                //   80 : Resource Exhausted
+           jvmtiEventGarbageCollectionStart GarbageCollectionStart;      //   81 : Garbage Collection Start
+           jvmtiEventGarbageCollectionFinish GarbageCollectionFinish;    //   82 : Garbage Collection Finish
+           jvmtiEventObjectFree ObjectFree;                              //   83 : Object Free
+           jvmtiEventVMObjectAlloc VMObjectAlloc;                        //   84 : VM Object Allocation
+       } jvmtiEventCallbacks;
+
+
 */
 
+JNICALL void objectAlloc(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread, jobject object, jclass object_klass, jlong size){
+  live++;
+}
+JNICALL void objectFree(jvmtiEnv *jvmti_env, jlong tag){
+  live--;
+}
 JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) {
 
    jvmtiEnv *jvmti;
@@ -251,12 +297,16 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
    capabilities.can_get_constant_pool = 1;
    capabilities.can_get_bytecodes = 1;
    capabilities.can_generate_garbage_collection_events = 1;
+   capabilities.can_generate_vm_object_alloc_events=1;
+   capabilities.can_generate_object_free_events=1;
 
    error = (*jvmti)->AddCapabilities(jvmti, &capabilities);
    checkJVMTIError(jvmti, error, "Unable to set Capabilities");
 
    error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_EXCEPTION, (jthread) NULL);
    checkJVMTIError(jvmti, error, "Cannot set Exception Event Notification");
+    error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_EXCEPTION, (jthread) NULL);
+      checkJVMTIError(jvmti, error, "Cannot set Exception Event Notification");
    error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_START, (jthread) NULL);
    checkJVMTIError(jvmti, error, "Cannot set GC Start Event Notification");
    error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_FINISH, (jthread) NULL);
@@ -265,14 +315,18 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
    checkJVMTIError(jvmti, error, "Cannot set VM Init Notification");
    error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_VM_DEATH, (jthread) NULL);
    checkJVMTIError(jvmti, error, "Cannot set VM Death Notification");
-
+   error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_VM_OBJECT_ALLOC, (jthread) NULL);
+   checkJVMTIError(jvmti, error, "Cannot set Object Alloc Notification");
+   error = (*jvmti)->SetEventNotificationMode(jvmti, JVMTI_ENABLE, JVMTI_EVENT_OBJECT_FREE, (jthread) NULL);
+      checkJVMTIError(jvmti, error, "Cannot set Object Free Notification");
    (void) memset(&eventCallbacks, 0, sizeof(eventCallbacks));
    eventCallbacks.Exception = &callbackExceptionEvent;
    eventCallbacks.GarbageCollectionStart = &garbageCollectionStart;
    eventCallbacks.GarbageCollectionFinish = &garbageCollectionFinish;
    eventCallbacks.VMDeath = &vmDeath;
    eventCallbacks.VMInit = &vmInit;
-
+   eventCallbacks.VMObjectAlloc = &objectAlloc;
+   eventCallbacks.ObjectFree = &objectFree;
 
    error = (*jvmti)->SetEventCallbacks(jvmti, &eventCallbacks, (jint) sizeof(eventCallbacks));
    checkJVMTIError(jvmti, error, "Cannot set Event Callbacks.");
