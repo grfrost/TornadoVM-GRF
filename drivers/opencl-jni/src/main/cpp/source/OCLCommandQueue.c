@@ -104,6 +104,64 @@ JNIEXPORT void JNICALL Java_uk_ac_manchester_tornado_drivers_opencl_OCLCommandQu
     OPENCL_SOFT_ERROR("clFlush", clFlush((cl_command_queue) queue_id),);
 }
 
+void dumpEvent(cl_event event){
+  cl_uint refcount;
+  if (clGetEventInfo(event, CL_EVENT_REFERENCE_COUNT, sizeof(refcount), (void *) &refcount, NULL) == CL_SUCCESS){
+ 	 printf("refcount=%d ",refcount);
+ 	 cl_command_type commandType;
+ 	 if (clGetEventInfo(event, CL_EVENT_COMMAND_TYPE, sizeof(commandType), (void *) &commandType, NULL) == CL_SUCCESS){
+ 	    switch (commandType){
+ 	        case CL_COMMAND_NDRANGE_KERNEL:  printf("type= CL_COMMAND_NDRANGE_KERNEL ");break;
+            case CL_COMMAND_NATIVE_KERNEL:  printf("type= CL_COMMAND_NATIVE_KERNEL");break;
+            case CL_COMMAND_READ_BUFFER:  printf("type= CL_COMMAND_READ_BUFFER");break;
+            case CL_COMMAND_WRITE_BUFFER:  printf("type= CL_COMMAND_WRITE_BUFFER");break;
+            case CL_COMMAND_COPY_BUFFER:  printf("type= CL_COMMAND_COPY_BUFFER");break;
+            default:printf("type= UNKNOWN %d", commandType);break;
+ 	    }
+ 	 }
+ 	 cl_int status;
+ 	 if (clGetEventInfo(event, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(status), (void *) &status, NULL) == CL_SUCCESS){
+ 	    switch (status){
+ 	       case CL_QUEUED:printf("status= CL_QUEUED ");break;
+ 	       case CL_SUBMITTED:printf("status= CL_SUBMITTED ");break;
+ 	       case CL_RUNNING:printf("status= CL_RUNNING ");break;
+ 	       case CL_COMPLETE:printf("status= CL_COMPLETE ");  break;
+ 	       default :printf("status= UNKNOWN %d ", status);
+ 	    }
+ 	 }
+ 	 printf("\n");
+  }else{
+ 	printf("BAD\n");
+  }
+}
+
+void dumpDebugEventList(jlong queue_id){
+ 	printf("debugEventListCount = %d\n", debugEventListCount);
+ 	for (jint i=0; i< debugEventListCount; i++){
+ 	    if (debugEventList[i]!=0){
+ 	       cl_event event = (cl_event)debugEventList[i];
+ 	       printf("[%d] ",i);
+ 	       dumpEvent(event);
+ 	     }
+ 	}
+}
+void releaseEventList(jlong queue_id){
+ 	for (jint i=0; i< debugEventListCount; i++){
+ 	   if (debugEventList[i]!=0){
+ 	      cl_event event = (cl_event)debugEventList[i];
+ 	      cl_int status;
+ 	      if (clGetEventInfo((cl_event) debugEventList[i], CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(status), (void *) &status, NULL) == CL_SUCCESS){
+ 	         if (status ==CL_COMPLETE){
+ 	              printf("[%d] status= CL_COMPLETE so releasing  \n", i);
+                  clReleaseEvent(event);
+                  debugEventList[i]=0;
+ 	          }
+ 	      }else{
+ 	         printf("[%d] BAD\n", i);
+ 	     }
+ 	   }
+ 	}
+}
 /*
  * Class:     uk_ac_manchester_tornado_drivers_opencl_OCLCommandQueue
  * Method:    clFinish
@@ -112,8 +170,10 @@ JNIEXPORT void JNICALL Java_uk_ac_manchester_tornado_drivers_opencl_OCLCommandQu
 JNIEXPORT void JNICALL Java_uk_ac_manchester_tornado_drivers_opencl_OCLCommandQueue_clFinish
 (JNIEnv *env, jclass clazz, jlong queue_id) {
     OPENCL_PROLOGUE;
-
+   // dumpDebugEventList(queue_id);
     OPENCL_SOFT_ERROR("clFinish", clFinish((cl_command_queue) queue_id),);
+    dumpDebugEventList(queue_id);
+    releaseEventList(queue_id);
 }
 
 /*
@@ -133,7 +193,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_drivers_opencl_OCLCommandQ
     cl_event kernelEvent = NULL;
     cl_int status = clEnqueueNDRangeKernel((cl_command_queue) queue_id, (cl_kernel) kernel_id, (cl_uint) work_dim, (size_t*) global_work_offset, (size_t*) global_work_size, (size_t*) local_work_size, (cl_uint) numEvents, (numEvents == 0)? NULL: (cl_event*) events, &kernelEvent);
     OPENCL_SOFT_ERROR("clEnqueueNDRangeKernel", status, 0);
-
+    SAVE_EVENT(kernelEvent);
 	if (PRINT_KERNEL_EVENTS) {
 		long kernelTime = getTimeEvent(kernelEvent);
 		printf("Kernel time: %ld (ns) \n", kernelTime);
@@ -164,7 +224,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_drivers_opencl_OCLCommandQ
     cl_event event;
     OPENCL_SOFT_ERROR("clEnqueueTask",
             clEnqueueTask((cl_command_queue) queue_id, (cl_kernel) kernel_id, (size_t) len, (cl_event *) events, &event), 0);
-
+    SAVE_EVENT(event);
     if (PRINT_KERNEL_EVENTS) {
         long kernelTime = getTimeEvent(event);
         printf("Kernel time: %ld (ns) \n", kernelTime);
@@ -188,7 +248,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_drivers_opencl_OCLCommandQ
     cl_event event;
     OPENCL_SOFT_ERROR("clEnqueueMarker",
             clEnqueueMarker((cl_command_queue) queue_id, &event), 0);
-
+    SAVE_EVENT(event);
     return (jlong) event;
 }
 
@@ -204,7 +264,6 @@ JNIEXPORT void JNICALL Java_uk_ac_manchester_tornado_drivers_opencl_OCLCommandQu
     cl_event event;
     OPENCL_SOFT_ERROR("clEnqueueBarrier",
             clEnqueueBarrier((cl_command_queue) queue_id),);
-
 }
 
 /*

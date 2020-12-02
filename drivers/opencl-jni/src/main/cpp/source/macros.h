@@ -25,6 +25,12 @@
  */
 #define VERBOSE 0
 
+extern  jlong* debugEventList;
+extern  jint debugEventListCount;
+#define DEBUG_EVENT_LIST_SIZE 10000
+
+#define SAVE_EVENT(e) if (debugEventList==NULL){debugEventList = (jlong*) malloc(DEBUG_EVENT_LIST_SIZE*sizeof(jlong));} debugEventList[debugEventListCount++]= (jlong)e;
+
 #define debug(fmt,args...) if(VERBOSE) printf(fmt,args);
 #define warn(fmt,args...)  printf(fmt,args);
 
