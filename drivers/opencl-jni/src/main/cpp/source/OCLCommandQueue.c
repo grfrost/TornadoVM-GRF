@@ -104,6 +104,46 @@ JNIEXPORT void JNICALL Java_uk_ac_manchester_tornado_drivers_opencl_OCLCommandQu
     OPENCL_SOFT_ERROR("clFlush", clFlush((cl_command_queue) queue_id),);
 }
 
+void dumpChromeEvent(FILE *json, cl_event event){
+    cl_int status;
+    static cl_long epoch;
+    if (clGetEventInfo(event, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(status), (void *) &status, NULL) == CL_SUCCESS){
+ 	   if (status ==CL_COMPLETE){
+ 	       cl_command_type commandType;
+ 	       char *type = "UNKNOWN";
+ 	       if (clGetEventInfo(event, CL_EVENT_COMMAND_TYPE, sizeof(commandType), (void *) &commandType, NULL) == CL_SUCCESS){
+        	    switch (commandType){
+        	       case CL_COMMAND_NDRANGE_KERNEL:  type = "CL_COMMAND_NDRANGE_KERNEL ";break;
+                   case CL_COMMAND_NATIVE_KERNEL:  type= "CL_COMMAND_NATIVE_KERNEL";break;
+                   case CL_COMMAND_READ_BUFFER:  type = "CL_COMMAND_READ_BUFFER";break;
+                   case CL_COMMAND_WRITE_BUFFER:  type= "CL_COMMAND_WRITE_BUFFER";break;
+                   case CL_COMMAND_COPY_BUFFER:  type= "CL_COMMAND_COPY_BUFFER";break;
+                   default: type= "UNKNOWN";break;
+        	    }
+        	 }
+
+ 	      int pid =0;
+
+ 	      cl_ulong  queuedNs = 20;
+ 	      cl_ulong submitNs = 20;
+ 	      cl_ulong startNs = 20;
+ 	      cl_ulong endNs = 20;
+          clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_QUEUED, sizeof(cl_ulong), &queuedNs, NULL);
+ 	      clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_SUBMIT, sizeof(cl_ulong), &submitNs, NULL);
+          clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &startNs, NULL);
+          clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &endNs, NULL);
+          if (epoch == 0){
+              epoch = queuedNs/1000;
+          }
+ 	      fprintf(json, ",{\"ph\":\"X\",\"name\":\"%s\",\"cat\":\"QUEUED\",\"pid\":%d,\"tid\":1,\"ts\":%ld,\"dur\":%ld}\n", type, pid, (queuedNs/1000)-epoch, (endNs-queuedNs)/1000);
+ 	      fprintf(json, ",{\"ph\":\"X\",\"name\":\"%s\",\"cat\":\"SUBMIT\",\"pid\":%d,\"tid\":1,\"ts\":%ld,\"dur\":%ld}\n", type, pid, (submitNs/1000)-epoch, (endNs-submitNs)/1000);
+ 	      fprintf(json, ",{\"ph\":\"X\",\"name\":\"%s\",\"cat\":\"%s\",\"pid\":%d,\"tid\":1,\"ts\":%ld,\"dur\":%ld}\n", type, type, pid, (startNs/1000)-epoch, (endNs-startNs)/1000);
+ 	   }
+ 	}
+//,{"ph":"X","name":"TaskSchedule)","cat":"trace","pid":0,"tid":1,"ts":2379,"dur":110152}
+
+}
+
 void dumpEvent(cl_event event){
   cl_uint refcount;
   if (clGetEventInfo(event, CL_EVENT_REFERENCE_COUNT, sizeof(refcount), (void *) &refcount, NULL) == CL_SUCCESS){
@@ -133,6 +173,20 @@ void dumpEvent(cl_event event){
   }else{
  	printf("BAD\n");
   }
+}
+
+void dumpChromeEvents(jlong queue_id){
+    FILE* json = fopen("jni.json", "wt");
+    fprintf(json, "{\"traceEvents\":[{\"args\":{\"name\":\"Tornado\"}, \"ph\":\"M\", \"pid\":0, \"tid\":1, \"name\":\"tornadovm\", \"sort_index\":1}\n");
+
+ 	for (jint i=0; i< debugEventListCount; i++){
+ 	    if (debugEventList[i]!=0){
+ 	       cl_event event = (cl_event)debugEventList[i];
+ 	       dumpChromeEvent(json, event);
+ 	     }
+ 	}
+ 	fprintf(json, "]}\n");
+ 	fclose(json);
 }
 
 void dumpDebugEventList(jlong queue_id){
@@ -172,8 +226,9 @@ JNIEXPORT void JNICALL Java_uk_ac_manchester_tornado_drivers_opencl_OCLCommandQu
     OPENCL_PROLOGUE;
    // dumpDebugEventList(queue_id);
     OPENCL_SOFT_ERROR("clFinish", clFinish((cl_command_queue) queue_id),);
-    dumpDebugEventList(queue_id);
-    releaseEventList(queue_id);
+    dumpChromeEvents(queue_id);
+   // dumpDebugEventList(queue_id);
+   // releaseEventList(queue_id);
 }
 
 /*
