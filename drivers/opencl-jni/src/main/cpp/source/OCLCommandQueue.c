@@ -146,14 +146,29 @@ void dumpChromeEvent(FILE *json, cl_event event){
           cl_ulong submitUs = submitNs/1000;
           cl_ulong startUs = startNs/1000;
           cl_ulong endUs = endNs/1000;
-          fprintf(json, ",{\"ph\":\"B\",\"cat\":\"%s\",\"name\":\"%s\",\"pid\":%d,\"tid\":1,\"ts\":%lu}\n", typeShort, typeShort, pid, queuedUs-epochUs);
- 	      fprintf(json, ",{\"ph\":\"X\",\"cat\":\"%s\",\"name\":\"QUE\",\"pid\":%d,\"tid\":1,\"ts\":%lu,\"dur\":%lu}\n", typeShort, pid, queuedUs-epochUs, submitUs-queuedUs);
- 	      fprintf(json, ",{\"ph\":\"X\",\"cat\":\"%s\",\"name\":\"SUB\",\"pid\":%d,\"tid\":1,\"ts\":%lu,\"dur\":%lu}\n", typeShort, pid, submitUs-epochUs, startUs-submitUs);
- 	      fprintf(json, ",{\"ph\":\"X\",\"cat\":\"%s\",\"name\":\"%s\",\"pid\":%d,\"tid\":1,\"ts\":%lu,\"dur\":%lu}\n", typeShort, typeShort, pid, startUs-epochUs, endUs-startUs);
+          fprintf(json, ",{\"ph\":\"B\",\"cat\":\"%s\",\"name\":\"%s\",\"pid\":%d,\"tid\":1,\"ts\":%lu}\n", typeShort, typeShort, pid, startUs-epochUs);
+ 	     // fprintf(json, ",{\"ph\":\"X\",\"cat\":\"%s\",\"name\":\"QUE\",\"pid\":%d,\"tid\":1,\"ts\":%lu,\"dur\":%lu}\n", typeShort, pid, queuedUs-epochUs, submitUs-queuedUs);
+ 	     // fprintf(json, ",{\"ph\":\"X\",\"cat\":\"%s\",\"name\":\"SUB\",\"pid\":%d,\"tid\":1,\"ts\":%lu,\"dur\":%lu}\n", typeShort, pid, submitUs-epochUs, startUs-submitUs);
+ 	     // fprintf(json, ",{\"ph\":\"X\",\"cat\":\"%s\",\"name\":\"%s\",\"pid\":%d,\"tid\":1,\"ts\":%lu,\"dur\":%lu}\n", typeShort, typeShort, pid, startUs-epochUs, endUs-startUs);
  	      fprintf(json, ",{\"ph\":\"E\",\"cat\":\"%s\",\"name\":\"%s\",\"pid\":%d,\"tid\":1,\"ts\":%lu}\n", typeShort, typeShort, pid, endUs-epochUs);
  	   }
  	}
 
+}
+void dumpChromeEvents(jlong queue_id){
+    FILE* json = fopen("jni.json", "wt");
+
+     // did not work \"displayTimeUnit\": \"ns\"
+    fprintf(json, "{ \"traceEvents\":[{\"args\":{\"name\":\"Tornado\"}, \"ph\":\"M\", \"pid\":0, \"tid\":1, \"name\":\"tornadovm\", \"sort_index\":1}\n");
+
+ 	for (jint i=0; i< debugEventListCount; i++){
+ 	    if (debugEventList[i]!=0){
+ 	       cl_event event = (cl_event)debugEventList[i];
+ 	       dumpChromeEvent(json, event);
+ 	     }
+ 	}
+ 	fprintf(json, "]}\n");
+ 	fclose(json);
 }
 
 void dumpEvent(cl_event event){
@@ -187,21 +202,7 @@ void dumpEvent(cl_event event){
   }
 }
 
-void dumpChromeEvents(jlong queue_id){
-    FILE* json = fopen("jni.json", "wt");
 
-     // did not work \"displayTimeUnit\": \"ns\"
-    fprintf(json, "{ \"traceEvents\":[{\"args\":{\"name\":\"Tornado\"}, \"ph\":\"M\", \"pid\":0, \"tid\":1, \"name\":\"tornadovm\", \"sort_index\":1}\n");
-
- 	for (jint i=0; i< debugEventListCount; i++){
- 	    if (debugEventList[i]!=0){
- 	       cl_event event = (cl_event)debugEventList[i];
- 	       dumpChromeEvent(json, event);
- 	     }
- 	}
- 	fprintf(json, "]}\n");
- 	fclose(json);
-}
 
 void dumpDebugEventList(jlong queue_id){
  	printf("debugEventListCount = %d\n", debugEventListCount);
